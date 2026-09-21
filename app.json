@@ -1,0 +1,3 @@
+{
+  "expo": {"name":"Artisans Togo","slug":"artisans-togo","version":"1.0.0","orientation":"portrait","userInterfaceStyle":"light","splash":{"resizeMode":"contain","backgroundColor":"#0f766e"},"android":{"package":"com.artisanstogo.app"},"ios":{"bundleIdentifier":"com.artisanstogo.app"}}
+}
