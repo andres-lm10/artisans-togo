@@ -1,33 +1,711 @@
-import React, {useState} from 'react';
-import {SafeAreaView, View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert} from 'react-native';
+import React, { useState } from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  View,
+  Text,
+  Pressable,
+  TextInput,
+  StyleSheet,
+  Alert,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import {StatusBar} from 'expo-status-bar';
+import { StatusBar } from 'expo-status-bar';
 
-const teal='#0f766e', pale='#e6fffb';
-const services=[['🧱','Artisans','Trouvez un professionnel fiable'],['👷','Manœuvres','Des équipes pour vos chantiers'],['🔧','Techniciens BTP','Génie civil et topographie'],['🏢','Sociétés BTP','Réalisez vos projets'],['🚚','Transporteurs','Matériaux et équipements'],['🚜','Conducteurs d’engins','Tous les engins BTP'],['🧰','Matériaux et équipements','Achetez près du chantier'],['🏗️','Engins de chantier','À louer et à vendre'],['📍','Terrains','Avec documents de propriété'],['🏠','Immobilier','Maisons, immeubles, bureaux'],['🛋️','Logement express','Villas courte durée']];
-const people=['BTP Solutions','Kossi Construction','Quincaillerie Togo','Afi Immobilier','Transport Express','Génie Civil Plus'];
+const COLORS = {
+  primary: '#0f766e',
+  primaryDark: '#115e59',
+  mint: '#ccfbf1',
+  background: '#f5f7f8',
+  surface: '#ffffff',
+  text: '#17202a',
+  muted: '#64748b',
+  border: '#e2e8f0',
+  navy: '#102a43',
+};
 
-export default function App(){const [screen,setScreen]=useState('home');const [selected,setSelected]=useState('');const [person,setPerson]=useState('');const [message,setMessage]=useState('');const [messages,setMessages]=useState(['Bonjour, comment pouvons-nous vous aider ?']);const [balance,setBalance]=useState(125000);const [images,setImages]=useState([]);
- const open=(s,data={})=>{if(data.service)setSelected(data.service);if(data.person)setPerson(data.person);setScreen(s)};
- const back=()=>setScreen('home');
- const send=()=>{if(message.trim()){setMessages([...messages,message.trim()]);setMessage('')}};
- const pickImages=async()=>{const r=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],allowsMultipleSelection:true,selectionLimit:4});if(!r.canceled)setImages(r.assets.slice(0,4))};
- const header=(title)=><View style={styles.header}><Pressable onPress={back}><Text style={styles.back}>‹</Text></Pressable><Text style={styles.headerTitle}>{title}</Text></View>;
- const nav=<View style={styles.nav}>{[['home','⌂','Accueil'],['messages','💬','Messages'],['cash','₣','PPC-Cash'],['publish','＋','Publier'],['profile','♙','Profil']].map(([s,i,t])=><Pressable key={s} style={styles.navItem} onPress={()=>open(s)}><Text style={styles.navIcon}>{i}</Text><Text style={styles.navText}>{t}</Text></Pressable>)}</View>;
- const peopleList=(title)=> <><ScrollView contentContainerStyle={styles.content}>{<Text style={styles.muted}>Prestataires proches de votre position</Text>}{people.map((p,i)=><Pressable style={styles.row} key={p} onPress={()=>open('chat',{person:p})}><View style={styles.avatar}><Text>{p.slice(0,2).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={styles.bold}>{p}</Text><Text style={styles.muted}>{(i+1)*1.3} km · Disponible</Text></View><Text style={styles.link}>Voir</Text></Pressable>)}</ScrollView></>;
- const serviceScreen=()=>{if(selected==='Conducteurs d’engins')return <Select title="Catégories d’engins" items={['Bulldozer','Pelleteuse','Chargeuse','Grue','Bétonnière','Pompe à béton','Niveleuse','Compacteur']} onDone={()=>open('results')}/>;if(['Matériaux et équipements','Terrains','Immobilier','Logement express'].includes(selected))return <Form title={selected} fields={selected==='Matériaux et équipements'?['Que cherchez-vous ?','Ville','Quartier']:['Ville','Quartier']} onDone={()=>open('results')}/>;return peopleList(selected)};
- const render=()=>{if(screen==='home')return <Home onService={s=>open('service',{service:s})} balance={balance}/>;if(screen==='service')return <>{header(selected)}{serviceScreen()}</>;if(screen==='results')return <>{header(selected||'Résultats')}{peopleList(selected)}</>;if(screen==='messages')return <Messages open={open}/>;if(screen==='chat')return <Chat person={person} messages={messages} value={message} setValue={setMessage} send={send} open={open}/>;if(screen==='attachments')return <Attachments open={open}/>;if(screen==='cash')return <Cash balance={balance} open={open}/>;if(screen==='topup')return <Form title="Recharger PPC-Cash" fields={['Numéro de téléphone','Montant en FCFA']} onDone={()=>{setBalance(balance+5000);Alert.alert('Félicitations','Votre recharge PPC-Cash a réussi.')}}/>;if(screen==='pay')return <Form title="Payer / Transférer" fields={['Scanner le QR code du bénéficiaire','Montant en FCFA']} onDone={()=>Alert.alert('Félicitations','Vous avez payé avec succès !')}/>;if(screen==='withdraw')return <Form title="Retirer de l’argent" fields={['Numéro de téléphone','Montant en FCFA']} onDone={()=>Alert.alert('Félicitations','Votre retrait a été envoyé.')}/>;if(screen==='publish')return <Publish images={images} pick={pickImages}/>;if(screen==='profile')return <Profile open={open}/>;if(screen==='account')return <Form title="Mon compte Artisans Togo" fields={['Numéro de téléphone','Ville','Quartier']} onDone={()=>Alert.alert('Profil sauvegardé')}/>;if(screen==='quote')return <Quote/>;if(screen==='paymentCard')return <PaymentCard/>;return <Home onService={s=>open('service',{service:s})} balance={balance}/>};
- return <SafeAreaView style={styles.safe}><StatusBar style="light"/><View style={{flex:1}}>{render()}</View>{['home','messages','cash','publish','profile'].includes(screen)&&nav}</SafeAreaView>}
+const SERVICES = [
+  ['🧱', 'Artisans', 'Trouvez un professionnel fiable'],
+  ['👷', 'Manœuvres', 'Des équipes pour vos chantiers'],
+  ['🔧', 'Techniciens BTP', 'Génie civil et topographie'],
+  ['🏢', 'Sociétés BTP', 'Réalisez vos projets'],
+  ['🚚', 'Transporteurs', 'Matériaux et équipements'],
+  ['🚜', 'Conducteurs d’engins', 'Tous les engins BTP'],
+  ['🧰', 'Matériaux et équipements', 'Achetez près du chantier'],
+  ['🏗️', 'Engins de chantier', 'À louer et à vendre'],
+  ['📍', 'Terrains', 'Avec documents de propriété'],
+  ['🏠', 'Immobilier', 'Maisons, immeubles, bureaux'],
+  ['🛋️', 'Logement express', 'Villas courte durée'],
+];
 
-function Home({onService,balance}){return <ScrollView contentContainerStyle={styles.content}><View style={styles.hero}><Text style={styles.heroSmall}>La plateforme qui vous accompagne</Text><Text style={styles.heroTitle}>Artisans Togo</Text><Text style={styles.heroSmall}>Construisez, achetez et trouvez les bons professionnels.</Text></View><View style={styles.wallet}><Text style={styles.mutedLight}>Votre solde PPC-Cash</Text><Text style={styles.balance}>{balance.toLocaleString('fr-FR')} FCFA</Text></View><Text style={styles.title}>Que recherchez-vous ?</Text>{services.map(([icon,title,sub])=><Pressable key={title} style={styles.card} onPress={()=>onService(title)}><Text style={styles.icon}>{icon}</Text><View><Text style={styles.bold}>{title}</Text><Text style={styles.muted}>{sub}</Text></View></Pressable>)}</ScrollView>}
-function Form({title,fields,onDone}){return <><View style={styles.header}><Pressable onPress={()=>{}}><Text style={styles.back}>‹</Text></Pressable><Text style={styles.headerTitle}>{title}</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.form}>{fields.map(f=><View key={f}><Text style={styles.label}>{f}</Text><TextInput style={styles.input} placeholder={f}/></View>)}<Pressable style={styles.primary} onPress={onDone}><Text style={styles.primaryText}>Valider</Text></Pressable></View></ScrollView></>}
-function Select({title,items,onDone}){return <><View style={styles.header}><Text style={styles.headerTitle}>{title}</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.form}>{items.map(x=><Text key={x} style={styles.check}>□  {x}</Text>)}<Pressable style={styles.primary} onPress={onDone}><Text style={styles.primaryText}>Valider</Text></Pressable></View></ScrollView></>}
-function Messages({open}){return <><View style={styles.header}><Text style={styles.headerTitle}>Discussions</Text></View><ScrollView contentContainerStyle={styles.content}>{people.slice(0,4).map((p,i)=><Pressable style={styles.row} key={p} onPress={()=>open('chat',{person:p})}><View style={styles.avatar}><Text>{p[0]}</Text></View><View style={{flex:1}}><Text style={styles.bold}>{p}</Text><Text style={styles.muted}>{['Votre devis est prêt.','Merci pour votre demande.','Article disponible.','À bientôt.'][i]}</Text></View><Text style={styles.muted}>{i+1} h</Text></Pressable>)}</ScrollView></>}
-function Chat({person,messages,value,setValue,send,open}){return <><View style={styles.header}><Pressable onPress={()=>open('messages')}><Text style={styles.back}>‹</Text></Pressable><Text style={styles.headerTitle}>{person||'Discussion'}</Text></View><ScrollView contentContainerStyle={styles.messages}>{messages.map((m,i)=><View key={i} style={[styles.bubble,i%2?styles.mine:null]}><Text>{m}</Text></View>)}</ScrollView><View style={styles.composer}><Pressable onPress={()=>open('attachments')}><Text style={styles.attach}>📎</Text></Pressable><TextInput style={styles.messageInput} value={value} onChangeText={setValue} placeholder="Écrire un message"/><Pressable style={styles.mic} onPress={send}><Text>{value?'➤':'🎤'}</Text></Pressable></View></>}
-function Attachments({open}){return <><View style={styles.header}><Pressable onPress={()=>open('chat')}><Text style={styles.back}>‹</Text></Pressable><Text style={styles.headerTitle}>Ajouter</Text></View><View style={styles.content}>{[['🖼️','Galerie'],['📷','Caméra'],['📍','Localisation'],['📄','Document'],['🧾','Devis'],['₣','Carte PPC-Cash']].map(([i,t])=><Pressable style={styles.card} key={t} onPress={()=>open(t==='Devis'?'quote':t==='Carte PPC-Cash'?'paymentCard':'chat')}><Text style={styles.icon}>{i}</Text><Text style={styles.bold}>{t}</Text></Pressable>)}</View></>}
-function Cash({balance,open}){return <><View style={styles.header}><Text style={styles.headerTitle}>PPC-Cash</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.wallet}><Text style={styles.mutedLight}>Solde PPC-Cash</Text><Text style={styles.balance}>{balance.toLocaleString('fr-FR')} FCFA</Text></View>{[['↥','Recharger PPC-Cash','topup'],['⇄','Payer / Transférer','pay'],['↧','Retirer de l’argent','withdraw'],['☷','Historique des opérations','messages']].map(([i,t,s])=><Pressable style={styles.card} key={t} onPress={()=>open(s)}><Text style={styles.icon}>{i}</Text><Text style={styles.bold}>{t}</Text></Pressable>)}</ScrollView></>}
-function Publish({images,pick}){return <><View style={styles.header}><Text style={styles.headerTitle}>Publier</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.form}><Text style={styles.title}>Déposer vos articles ici</Text><Pressable style={styles.upload} onPress={pick}><Text style={styles.plus}>＋</Text><Text>Ajouter jusqu’à 4 images ({images.length}/4)</Text></Pressable>{['Nom','Prix','Description','Ville','Quartier'].map(f=><TextInput style={styles.input} key={f} placeholder={f}/>)}<Pressable style={styles.primary} onPress={()=>Alert.alert('Publication','Article envoyé')}><Text style={styles.primaryText}>Envoyer</Text></Pressable></View></ScrollView></>}
-function Profile({open}){return <><View style={styles.header}><Text style={styles.headerTitle}>Profil</Text></View><View style={styles.content}>{[['👤','Mon compte Artisans Togo','account'],['🎁','Parrainage','about'],['ⓘ','À propos d’Artisans Togo','about'],['↪','Déconnexion','home']].map(([i,t,s])=><Pressable style={styles.card} key={t} onPress={()=>open(s)}><Text style={styles.icon}>{i}</Text><Text style={styles.bold}>{t}</Text></Pressable>)}</View></>}
-function Quote(){return <><View style={styles.header}><Text style={styles.headerTitle}>Artisans Togo · Devis</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.form}>{['Niveau des travaux','Matériaux nécessaires','Main-d’œuvre'].map(f=><TextInput style={styles.input} multiline key={f} placeholder={f}/>) }<Text style={styles.bold}>Total : calculé automatiquement</Text><Pressable style={styles.primary} onPress={()=>Alert.alert('Devis','Devis accepté et envoyé')}><Text style={styles.primaryText}>Accepter le devis</Text></Pressable></View></ScrollView></>}
-function PaymentCard(){return <><View style={styles.header}><Text style={styles.headerTitle}>Carte PPC-Cash</Text></View><View style={styles.content}><View style={styles.form}><Text style={styles.bold}>Total à payer : 50 000 FCFA</Text><Text style={styles.qr}>▦{`\n`}QR CODE{`\n`}Valable 05:00</Text><Pressable style={styles.primary} onPress={()=>Alert.alert('PPC-Cash','Carte envoyée dans la discussion')}><Text style={styles.primaryText}>Générer</Text></Pressable></View></View></>}
-const styles=StyleSheet.create({safe:{flex:1,backgroundColor:'#f5f7f8'},header:{height:64,backgroundColor:teal,flexDirection:'row',alignItems:'center',paddingHorizontal:16},back:{color:'#fff',fontSize:34,width:42},headerTitle:{color:'#fff',fontSize:19,fontWeight:'700'},content:{padding:16,paddingBottom:28},hero:{backgroundColor:teal,borderRadius:22,padding:24,marginBottom:16},heroSmall:{color:'#d5fffa'},heroTitle:{color:'#fff',fontSize:30,fontWeight:'800',marginVertical:8},wallet:{backgroundColor:'#102a43',borderRadius:18,padding:18,marginBottom:18},mutedLight:{color:'#c8d8e8'},balance:{fontSize:25,fontWeight:'800',color:'#fff',marginTop:8},title:{fontSize:20,fontWeight:'800',marginVertical:12},card:{backgroundColor:'#fff',borderRadius:15,padding:16,marginBottom:11,flexDirection:'row',alignItems:'center',gap:14,elevation:1},icon:{fontSize:25,width:38},bold:{fontWeight:'700',fontSize:15},muted:{color:'#64748b',marginTop:4},row:{backgroundColor:'#fff',borderRadius:15,padding:13,marginBottom:10,flexDirection:'row',alignItems:'center',gap:12},avatar:{width:48,height:48,borderRadius:24,backgroundColor:'#ccfbf1',alignItems:'center',justifyContent:'center'},link:{color:teal,fontWeight:'700'},form:{backgroundColor:'#fff',borderRadius:17,padding:18},label:{fontWeight:'700',marginTop:12,marginBottom:6},input:{borderWidth:1,borderColor:'#dbe4e8',borderRadius:10,padding:12,marginBottom:11,minHeight:46},primary:{backgroundColor:teal,borderRadius:11,padding:14,alignItems:'center',marginTop:14},primaryText:{color:'#fff',fontWeight:'800'},check:{padding:14,borderBottomWidth:1,borderBottomColor:'#e2e8f0'},nav:{position:'absolute',bottom:0,left:0,right:0,height:70,backgroundColor:'#fff',borderTopWidth:1,borderTopColor:'#e2e8f0',flexDirection:'row'},navItem:{flex:1,alignItems:'center',justifyContent:'center'},navIcon:{fontSize:21},navText:{fontSize:10,color:'#64748b'},messages:{padding:16,paddingBottom:100},bubble:{backgroundColor:'#fff',padding:12,borderRadius:17,alignSelf:'flex-start',marginBottom:10,maxWidth:'80%'},mine:{backgroundColor:'#ccfbf1',alignSelf:'flex-end'},composer:{position:'absolute',bottom:0,left:0,right:0,backgroundColor:'#fff',borderTopWidth:1,borderTopColor:'#e2e8f0',padding:8,flexDirection:'row',alignItems:'center',gap:6},attach:{fontSize:22},messageInput:{flex:1,borderWidth:1,borderColor:'#dbe4e8',borderRadius:22,paddingHorizontal:14,paddingVertical:10},mic:{width:43,height:43,borderRadius:22,backgroundColor:teal,alignItems:'center',justifyContent:'center'},upload:{borderWidth:2,borderStyle:'dashed',borderColor:'#99f6e4',borderRadius:15,alignItems:'center',padding:25,marginBottom:15},plus:{fontSize:42,color:teal},qr:{textAlign:'center',fontSize:25,marginVertical:28,color:teal}}
+const PEOPLE = [
+  'BTP Solutions',
+  'Kossi Construction',
+  'Quincaillerie Togo',
+  'Afi Immobilier',
+  'Transport Express',
+  'Génie Civil Plus',
+];
+
+const initialMessages = [
+  'Bonjour, comment pouvons-nous vous aider ?',
+  'Nous pouvons vous proposer des artisans proches.',
+];
+
+export default function App() {
+  const [screen, setScreen] = useState('home');
+  const [balance, setBalance] = useState(125000);
+  const [selectedService, setSelectedService] = useState('Artisans');
+  const [selectedPerson, setSelectedPerson] = useState('BTP Solutions');
+  const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState(initialMessages);
+  const [images, setImages] = useState([]);
+
+  const openScreen = (nextScreen) => setScreen(nextScreen);
+
+  const goBack = () => {
+    if (screen === 'service' || screen === 'chat' || screen === 'cash' || screen === 'publish' || screen === 'profile') {
+      setScreen('home');
+      return;
+    }
+    setScreen('home');
+  };
+
+  const sendMessage = () => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+    setMessages((current) => [...current, trimmed]);
+    setMessage('');
+  };
+
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: 4,
+    });
+
+    if (!result.canceled) {
+      setImages(result.assets.slice(0, 4));
+    }
+  };
+
+  const renderScreen = () => {
+    switch (screen) {
+      case 'home':
+        return (
+          <HomeScreen
+            balance={balance}
+            onServicePress={(service) => {
+              setSelectedService(service);
+              setScreen('service');
+            }}
+          />
+        );
+
+      case 'service':
+        return (
+          <ServiceScreen
+            title={selectedService}
+            onBack={goBack}
+            onPersonPress={(person) => {
+              setSelectedPerson(person);
+              setScreen('chat');
+            }}
+          />
+        );
+
+      case 'chat':
+        return (
+          <ChatScreen
+            person={selectedPerson}
+            messages={messages}
+            value={message}
+            onChangeText={setMessage}
+            onSend={sendMessage}
+            onBack={goBack}
+            onAttachment={() => Alert.alert('Pièce jointe', 'Galerie / caméra / document / devis / carte PPC-Cash')}
+          />
+        );
+
+      case 'cash':
+        return (
+          <CashScreen
+            balance={balance}
+            onBack={goBack}
+            onRecharge={() => {
+              setBalance((value) => value + 5000);
+              Alert.alert('Recharge réussie', 'Votre compte PPC-Cash a été rechargé.');
+            }}
+            onPay={() => Alert.alert('Paiement', 'Paiement réussi avec succès.')}
+            onWithdraw={() => Alert.alert('Retrait', 'Retrait envoyé avec succès.')}
+          />
+        );
+
+      case 'publish':
+        return (
+          <PublishScreen
+            images={images}
+            onPick={pickImages}
+            onBack={goBack}
+            onSubmit={() => Alert.alert('Publication', 'Votre article a été publié.')}
+          />
+        );
+
+      case 'profile':
+        return (
+          <ProfileScreen onBack={goBack} />
+        );
+
+      default:
+        return (
+          <HomeScreen
+            balance={balance}
+            onServicePress={(service) => {
+              setSelectedService(service);
+              setScreen('service');
+            }}
+          />
+        );
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" />
+      <View style={styles.container}>{renderScreen()}</View>
+      <BottomNav active={screen} onPress={openScreen} />
+    </SafeAreaView>
+  );
+}
+
+function BottomNav({ active, onPress }) {
+  const tabs = [
+    { key: 'home', label: 'Accueil', icon: '⌂' },
+    { key: 'chat', label: 'Messages', icon: '💬' },
+    { key: 'cash', label: 'PPC-Cash', icon: '₣' },
+    { key: 'publish', label: 'Publier', icon: '+' },
+    { key: 'profile', label: 'Profil', icon: '♙' },
+  ];
+
+  return (
+    <View style={styles.navBar}>
+      {tabs.map((tab) => (
+        <Pressable
+          key={tab.key}
+          onPress={() => onPress(tab.key)}
+          style={[styles.navItem, active === tab.key && styles.navItemActive]}
+        >
+          <Text style={styles.navIcon}>{tab.icon}</Text>
+          <Text style={[styles.navLabel, active === tab.key && styles.navLabelActive]}>{tab.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function HomeScreen({ balance, onServicePress }) {
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <View style={styles.heroBanner}>
+        <Text style={styles.heroSmall}>La plateforme qui vous accompagne</Text>
+        <Text style={styles.heroTitle}>Artisans Togo</Text>
+        <Text style={styles.heroText}>Construisez, achetez et trouvez les bons professionnels.</Text>
+      </View>
+
+      <View style={styles.walletCard}>
+        <Text style={styles.walletLabel}>Votre solde PPC-Cash</Text>
+        <Text style={styles.walletAmount}>{balance.toLocaleString('fr-FR')} FCFA</Text>
+      </View>
+
+      <Text style={styles.sectionTitle}>Que recherchez-vous ?</Text>
+
+      {SERVICES.map(([icon, title, subtitle], index) => (
+        <Pressable key={`${title}-${index}`} onPress={() => onServicePress(title)} style={styles.serviceCard}>
+          <Text style={styles.serviceIcon}>{icon}</Text>
+          <View style={styles.serviceTextWrap}>
+            <Text style={styles.serviceTitle}>{title}</Text>
+            <Text style={styles.serviceSubtitle}>{subtitle}</Text>
+          </View>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+function ServiceScreen({ title, onBack, onPersonPress }) {
+  return (
+    <View style={styles.screen}>
+      <Header title={title} onBack={onBack} />
+      <ScrollView contentContainerStyle={styles.content}>
+        {PEOPLE.map((person, index) => (
+          <Pressable key={`${person}-${index}`} onPress={() => onPersonPress(person)} style={styles.personRow}>
+            <View style={styles.avatarCircle}><Text style={styles.avatarText}>{person.slice(0, 2).toUpperCase()}</Text></View>
+            <View style={styles.personInfo}>
+              <Text style={styles.personName}>{person}</Text>
+              <Text style={styles.personMeta}>{(index + 1) * 1.3} km · Disponible</Text>
+            </View>
+            <Text style={styles.linkText}>Voir</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function ChatScreen({ person, messages, value, onChangeText, onSend, onBack, onAttachment }) {
+  return (
+    <View style={styles.screen}>
+      <Header title={person} onBack={onBack} />
+
+      <ScrollView contentContainerStyle={styles.chatContent}>
+        {messages.map((msg, index) => (
+          <View
+            key={`${msg}-${index}`}
+            style={[styles.chatBubble, index % 2 === 1 && styles.chatBubbleMine]}
+          >
+            <Text style={styles.chatBubbleText}>{msg}</Text>
+          </View>
+        ))}
+      </ScrollView>
+
+      <View style={styles.chatInputBar}>
+        <Pressable onPress={onAttachment}>
+          <Text style={styles.attachIcon}>📎</Text>
+        </Pressable>
+        <Pressable onPress={onAttachment}>
+          <Text style={styles.attachIcon}>📷</Text>
+        </Pressable>
+
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder="Écrire un message"
+          style={styles.messageInput}
+        />
+
+        <Pressable onPress={onSend} style={styles.sendButton}>
+          <Text style={styles.sendIcon}>{value.trim() ? '➤' : '🎤'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function CashScreen({ balance, onBack, onRecharge, onPay, onWithdraw }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="PPC-Cash" onBack={onBack} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.walletCard}>
+          <Text style={styles.walletLabel}>Solde PPC-Cash</Text>
+          <Text style={styles.walletAmount}>{balance.toLocaleString('fr-FR')} FCFA</Text>
+        </View>
+
+        <Pressable onPress={onRecharge} style={styles.actionCard}>
+          <Text style={styles.actionIcon}>↥</Text>
+          <Text style={styles.actionText}>Recharger PPC-Cash</Text>
+        </Pressable>
+
+        <Pressable onPress={onPay} style={styles.actionCard}>
+          <Text style={styles.actionIcon}>⇄</Text>
+          <Text style={styles.actionText}>Payer / Transférer</Text>
+        </Pressable>
+
+        <Pressable onPress={onWithdraw} style={styles.actionCard}>
+          <Text style={styles.actionIcon}>↧</Text>
+          <Text style={styles.actionText}>Retirer de l’argent</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  );
+}
+
+function PublishScreen({ images, onPick, onBack, onSubmit }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Publier" onBack={onBack} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.formCard}>
+          <Text style={styles.formTitle}>Déposer vos articles ici</Text>
+
+          <Pressable onPress={onPick} style={styles.uploadBox}>
+            <Text style={styles.uploadIcon}>＋</Text>
+            <Text style={styles.uploadText}>Ajouter jusqu’à 4 images ({images.length}/4)</Text>
+          </Pressable>
+
+          <TextInput placeholder="Nom de l’article" style={styles.input} />
+          <TextInput placeholder="Prix (FCFA)" keyboardType="numeric" style={styles.input} />
+          <TextInput placeholder="Description" multiline style={[styles.input, styles.textArea]} />
+          <TextInput placeholder="Ville" style={styles.input} />
+          <TextInput placeholder="Quartier" style={styles.input} />
+
+          <Pressable style={styles.primaryButton} onPress={onSubmit}>
+            <Text style={styles.primaryButtonText}>Envoyer</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function ProfileScreen({ onBack }) {
+  const items = [
+    'Mon compte Artisans Togo',
+    'Parrainage',
+    'À propos d’Artisans Togo',
+    'Déconnexion',
+  ];
+
+  return (
+    <View style={styles.screen}>
+      <Header title="Profil" onBack={onBack} />
+      <ScrollView contentContainerStyle={styles.content}>
+        {items.map((item, index) => (
+          <Pressable key={`${item}-${index}`} style={styles.actionCard}>
+            <Text style={styles.actionIcon}>{index === 0 ? '👤' : index === 1 ? '🎁' : index === 2 ? 'ⓘ' : '↪'}</Text>
+            <Text style={styles.actionText}>{item}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function Header({ title, onBack }) {
+  return (
+    <View style={styles.header}>
+      {onBack ? (
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>‹</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.backButtonSpacer} />
+      )}
+      <Text style={styles.headerTitle}>{title}</Text>
+      <View style={styles.backButtonSpacer} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  content: {
+    padding: 18,
+    paddingBottom: 32,
+  },
+  header: {
+    height: 64,
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonSpacer: {
+    width: 32,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 32,
+    lineHeight: 32,
+  },
+  headerTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    flex: 1,
+  },
+  heroBanner: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 22,
+    padding: 22,
+    marginBottom: 18,
+  },
+  heroSmall: {
+    color: '#d5fffa',
+    fontSize: 12,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    color: '#fff',
+    fontSize: 30,
+    fontWeight: '900',
+    marginVertical: 10,
+  },
+  heroText: {
+    color: '#d5fffa',
+    fontSize: 15,
+  },
+  walletCard: {
+    backgroundColor: COLORS.navy,
+    padding: 20,
+    borderRadius: 18,
+    marginBottom: 18,
+  },
+  walletLabel: {
+    color: '#d5e2ef',
+    fontSize: 12,
+  },
+  walletAmount: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '900',
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 10,
+  },
+  serviceCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  serviceIcon: {
+    fontSize: 28,
+    width: 38,
+  },
+  serviceTextWrap: {
+    flex: 1,
+  },
+  serviceTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  serviceSubtitle: {
+    marginTop: 4,
+    color: COLORS.muted,
+    fontSize: 12,
+  },
+  personRow: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  avatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ccfbf1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: COLORS.primaryDark,
+    fontWeight: '900',
+  },
+  personInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  personName: {
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  personMeta: {
+    color: COLORS.muted,
+    marginTop: 4,
+    fontSize: 12,
+  },
+  linkText: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  chatContent: {
+    padding: 18,
+    paddingBottom: 100,
+  },
+  chatBubble: {
+    maxWidth: '80%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  chatBubbleMine: {
+    backgroundColor: COLORS.mint,
+    alignSelf: 'flex-end',
+  },
+  chatBubbleText: {
+    color: COLORS.text,
+    fontSize: 15,
+  },
+  chatInputBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  attachIcon: {
+    fontSize: 22,
+    color: COLORS.muted,
+  },
+  messageInput: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: COLORS.text,
+  },
+  sendButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendIcon: {
+    color: '#fff',
+    fontSize: 18,
+  },
+  actionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionIcon: {
+    fontSize: 24,
+    width: 30,
+  },
+  actionText: {
+    color: COLORS.text,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
+  formCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 18,
+  },
+  formTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 16,
+    color: COLORS.text,
+  },
+  uploadBox: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#99f6e4',
+    borderRadius: 16,
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0fdfa',
+    marginBottom: 18,
+  },
+  uploadIcon: {
+    fontSize: 36,
+    color: COLORS.primary,
+    marginBottom: 6,
+  },
+  uploadText: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    marginBottom: 12,
+    color: COLORS.text,
+  },
+  textArea: {
+    minHeight: 110,
+    textAlignVertical: 'top',
+  },
+  primaryButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontWeight: '800',
+  },
+  navBar: {
+    flexDirection: 'row',
+    height: 72,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navItemActive: {
+    backgroundColor: '#f0fdfa',
+  },
+  navIcon: {
+    fontSize: 22,
+  },
+  navLabel: {
+    fontSize: 10,
+    color: COLORS.muted,
+    marginTop: 2,
+  },
+  navLabelActive: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+});
