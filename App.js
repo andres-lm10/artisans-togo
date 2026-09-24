@@ -1,370 +1,577 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   SafeAreaView,
-  ScrollView,
   View,
   Text,
-  Pressable,
   TextInput,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Alert,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 
-const COLORS = {
+const C = {
   primary: '#0f766e',
-  primaryDark: '#115e59',
-  mint: '#ccfbf1',
+  dark: '#115e59',
   background: '#f5f7f8',
-  surface: '#ffffff',
+  white: '#ffffff',
   text: '#17202a',
   muted: '#64748b',
-  border: '#e2e8f0',
+  border: '#dbe4e8',
+  mint: '#ccfbf1',
   navy: '#102a43',
+  danger: '#b91c1c',
 };
 
-const SERVICES = [
-  ['🧱', 'Artisans', 'Trouvez un professionnel fiable'],
-  ['👷', 'Manœuvres', 'Des équipes pour vos chantiers'],
-  ['🔧', 'Techniciens BTP', 'Génie civil et topographie'],
-  ['🏢', 'Sociétés BTP', 'Réalisez vos projets'],
-  ['🚚', 'Transporteurs', 'Matériaux et équipements'],
-  ['🚜', 'Conducteurs d’engins', 'Tous les engins BTP'],
-  ['🧰', 'Matériaux et équipements', 'Achetez près du chantier'],
-  ['🏗️', 'Engins de chantier', 'À louer et à vendre'],
-  ['📍', 'Terrains', 'Avec documents de propriété'],
-  ['🏠', 'Immobilier', 'Maisons, immeubles, bureaux'],
-  ['🛋️', 'Logement express', 'Villas courte durée'],
+const categories = [
+  'Artisans',
+  'Manœuvres',
+  'Techniciens BTP',
+  'Sociétés BT/BTP',
+  'Transporteurs',
+  'Conducteurs d’engins',
+  'Matériaux et équipements',
+  'Engins de chantier',
+  'Terrains',
+  'Maisons, immeubles et bureaux',
+  'Logement express',
 ];
 
-const PEOPLE = [
-  'BTP Solutions',
-  'Kossi Construction',
-  'Quincaillerie Togo',
-  'Afi Immobilier',
-  'Transport Express',
-  'Génie Civil Plus',
+const machinery = [
+  'Bulldozer',
+  'Pelleteuse / excavatrice',
+  'Pelle hydraulique',
+  'Chargeuse',
+  'Tombereau / dumper',
+  'Décapeuse / scraper',
+  'Trancheuse',
+  'Compacteur / rouleau',
+  'Niveleuse / grader',
+  'Vibreur à plaque',
+  'Pilonneuse / dameuse',
+  'Grue à tour',
+  'Grue mobile',
+  'Chariot élévateur / Manitou',
+  'Nacelle / plateforme',
+  'Bétonnière',
+  'Centrale à béton',
+  'Pompe à béton',
+  'Foreuse / tarière',
+  'Sondeuse',
+  'Compresseur d’air',
+  'Lisseuse à béton',
 ];
 
-const initialMessages = [
-  'Bonjour, comment pouvons-nous vous aider ?',
-  'Nous pouvons vous proposer des artisans proches.',
-];
+function Header({ title, onBack }) {
+  return (
+    <View style={styles.header}>
+      <Pressable onPress={onBack} style={styles.backButton}>
+        <Text style={styles.backText}>‹</Text>
+      </Pressable>
+      <Text style={styles.headerTitle}>{title}</Text>
+      <View style={styles.backButton} />
+    </View>
+  );
+}
+
+function Button({ title, onPress, secondary = false }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.button, secondary && styles.secondaryButton]}>
+      <Text style={[styles.buttonText, secondary && styles.secondaryButtonText]}>{title}</Text>
+    </Pressable>
+  );
+}
+
+function Field({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, multiline }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder || label}
+        placeholderTextColor={C.muted}
+        keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
+        multiline={multiline}
+        style={[styles.input, multiline && styles.multiline]}
+      />
+    </View>
+  );
+}
+
+function TableHeader({ labels }) {
+  return (
+    <View style={styles.tableRow}>
+      {labels.map((label) => (
+        <Text key={label} style={styles.cellHeader}>{label}</Text>
+      ))}
+    </View>
+  );
+}
 
 export default function App() {
   const [screen, setScreen] = useState('home');
-  const [balance, setBalance] = useState(125000);
-  const [selectedService, setSelectedService] = useState('Artisans');
-  const [selectedPerson, setSelectedPerson] = useState('BTP Solutions');
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState(initialMessages);
-  const [images, setImages] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('Artisans');
+  const [chatText, setChatText] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [quoteRows, setQuoteRows] = useState([{ designation: '', quantity: '', unit: '' }]);
+  const [labourRows, setLabourRows] = useState([{ designation: '', quantity: '', price: '' }]);
+  const [paymentRows, setPaymentRows] = useState([{ name: '', amount: '' }]);
+  const [cardCreatedAt, setCardCreatedAt] = useState(null);
+  const [operator, setOperator] = useState('');
 
-  const openScreen = (nextScreen) => setScreen(nextScreen);
+  const go = (nextScreen) => setScreen(nextScreen);
+  const back = () => setScreen('home');
 
-  const goBack = () => {
-    if (screen === 'service' || screen === 'chat' || screen === 'cash' || screen === 'publish' || screen === 'profile') {
-      setScreen('home');
-      return;
-    }
-    setScreen('home');
-  };
-
-  const sendMessage = () => {
-    const trimmed = message.trim();
+  const sendChat = () => {
+    const trimmed = chatText.trim();
     if (!trimmed) return;
-    setMessages((current) => [...current, trimmed]);
-    setMessage('');
+    setChatMessages((items) => [...items, trimmed]);
+    setChatText('');
   };
 
-  const pickImages = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      selectionLimit: 4,
-    });
-
-    if (!result.canceled) {
-      setImages(result.assets.slice(0, 4));
-    }
-  };
+  const expiresAt = useMemo(() => {
+    if (!cardCreatedAt) return null;
+    return cardCreatedAt + 5 * 60 * 1000;
+  }, [cardCreatedAt]);
 
   const renderScreen = () => {
-    switch (screen) {
-      case 'home':
-        return (
-          <HomeScreen
-            balance={balance}
-            onServicePress={(service) => {
-              setSelectedService(service);
-              setScreen('service');
-            }}
-          />
-        );
-
-      case 'service':
-        return (
-          <ServiceScreen
-            title={selectedService}
-            onBack={goBack}
-            onPersonPress={(person) => {
-              setSelectedPerson(person);
-              setScreen('chat');
-            }}
-          />
-        );
-
-      case 'chat':
-        return (
-          <ChatScreen
-            person={selectedPerson}
-            messages={messages}
-            value={message}
-            onChangeText={setMessage}
-            onSend={sendMessage}
-            onBack={goBack}
-            onAttachment={() => Alert.alert('Pièce jointe', 'Galerie / caméra / document / devis / carte PPC-Cash')}
-          />
-        );
-
-      case 'cash':
-        return (
-          <CashScreen
-            balance={balance}
-            onBack={goBack}
-            onRecharge={() => {
-              setBalance((value) => value + 5000);
-              Alert.alert('Recharge réussie', 'Votre compte PPC-Cash a été rechargé.');
-            }}
-            onPay={() => Alert.alert('Paiement', 'Paiement réussi avec succès.')}
-            onWithdraw={() => Alert.alert('Retrait', 'Retrait envoyé avec succès.')}
-          />
-        );
-
-      case 'publish':
-        return (
-          <PublishScreen
-            images={images}
-            onPick={pickImages}
-            onBack={goBack}
-            onSubmit={() => Alert.alert('Publication', 'Votre article a été publié.')}
-          />
-        );
-
-      case 'profile':
-        return (
-          <ProfileScreen onBack={goBack} />
-        );
-
-      default:
-        return (
-          <HomeScreen
-            balance={balance}
-            onServicePress={(service) => {
-              setSelectedService(service);
-              setScreen('service');
-            }}
-          />
-        );
-    }
+    if (screen === 'home') return <Home go={go} setSelectedCategory={setSelectedCategory} />;
+    if (screen === 'search') return <Search category={selectedCategory} go={go} />;
+    if (screen === 'chat') return <Chat go={go} messages={chatMessages} text={chatText} setText={setChatText} send={sendChat} />;
+    if (screen === 'attachments') return <Attachments go={go} />;
+    if (screen === 'location') return <LocationScreen back={back} />;
+    if (screen === 'document') return <DocumentScreen back={back} />;
+    if (screen === 'quote') return <QuoteScreen back={back} rows={quoteRows} setRows={setQuoteRows} labour={labourRows} setLabour={setLabourRows} />;
+    if (screen === 'paymentCard') return <PaymentCard rows={paymentRows} setRows={setPaymentRows} createdAt={cardCreatedAt} expiresAt={expiresAt} onGenerate={() => setCardCreatedAt(Date.now())} go={go} />;
+    if (screen === 'payConfirm') return <PayConfirm go={go} />;
+    if (screen === 'paySuccess') return <Success title="Félicitations !" message="Vous avez payé avec succès !" back={back} />;
+    if (screen === 'cash') return <Cash go={go} />;
+    if (screen === 'recharge') return <Recharge operator={operator} setOperator={setOperator} go={go} />;
+    if (screen === 'operatorCode') return <OperatorCode go={go} />;
+    if (screen === 'ppcSecret') return <PpcSecret go={go} success="recharge" />;
+    if (screen === 'rechargeSuccess') return <Success title="Félicitations !" message="La recharge de votre compte PPC-Cash a réussi." back={back} />;
+    if (screen === 'withdraw') return <Withdrawal operator={operator} setOperator={setOperator} go={go} />;
+    if (screen === 'withdrawSummary') return <WithdrawalSummary operator={operator} go={go} />;
+    if (screen === 'withdrawSuccess') return <Success title="Félicitations !" message={`Vous venez de retirer : … FCFA vers ${operator}.`} back={back} />;
+    if (screen === 'publish') return <Publish back={back} />;
+    if (screen === 'profile') return <Profile back={back} />;
+    return <Home go={go} setSelectedCategory={setSelectedCategory} />;
   };
 
+  const showNav = ['home', 'chat', 'cash', 'publish', 'profile'].includes(screen);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
-      <View style={styles.container}>{renderScreen()}</View>
-      <BottomNav active={screen} onPress={openScreen} />
+      <View style={styles.app}>{renderScreen()}</View>
+      {showNav && <BottomNav active={screen} go={go} />}
     </SafeAreaView>
   );
 }
 
-function BottomNav({ active, onPress }) {
+function BottomNav({ active, go }) {
   const tabs = [
-    { key: 'home', label: 'Accueil', icon: '⌂' },
-    { key: 'chat', label: 'Messages', icon: '💬' },
-    { key: 'cash', label: 'PPC-Cash', icon: '₣' },
-    { key: 'publish', label: 'Publier', icon: '+' },
-    { key: 'profile', label: 'Profil', icon: '♙' },
+    ['home', '⌂', 'Accueil'],
+    ['chat', '💬', 'Discussion'],
+    ['cash', '₣', 'PPC-Cash'],
+    ['publish', '+', 'Publier'],
+    ['profile', '♙', 'Profil'],
   ];
 
   return (
-    <View style={styles.navBar}>
-      {tabs.map((tab) => (
-        <Pressable
-          key={tab.key}
-          onPress={() => onPress(tab.key)}
-          style={[styles.navItem, active === tab.key && styles.navItemActive]}
-        >
-          <Text style={styles.navIcon}>{tab.icon}</Text>
-          <Text style={[styles.navLabel, active === tab.key && styles.navLabelActive]}>{tab.label}</Text>
+    <View style={styles.bottomNav}>
+      {tabs.map(([key, icon, label]) => (
+        <Pressable key={key} onPress={() => go(key)} style={styles.navItem}>
+          <Text style={styles.navIcon}>{icon}</Text>
+          <Text style={[styles.navLabel, active === key && styles.activeLabel]}>{label}</Text>
         </Pressable>
       ))}
     </View>
   );
 }
 
-function HomeScreen({ balance, onServicePress }) {
+function Home({ go, setSelectedCategory }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.heroBanner}>
-        <Text style={styles.heroSmall}>La plateforme qui vous accompagne</Text>
-        <Text style={styles.heroTitle}>Artisans Togo</Text>
-        <Text style={styles.heroText}>Construisez, achetez et trouvez les bons professionnels.</Text>
+      <View style={styles.homeTitle}>
+        <Text style={styles.brand}>Artisans Togo</Text>
       </View>
-
-      <View style={styles.walletCard}>
-        <Text style={styles.walletLabel}>Votre solde PPC-Cash</Text>
-        <Text style={styles.walletAmount}>{balance.toLocaleString('fr-FR')} FCFA</Text>
-      </View>
-
-      <Text style={styles.sectionTitle}>Que recherchez-vous ?</Text>
-
-      {SERVICES.map(([icon, title, subtitle], index) => (
-        <Pressable key={`${title}-${index}`} onPress={() => onServicePress(title)} style={styles.serviceCard}>
-          <Text style={styles.serviceIcon}>{icon}</Text>
-          <View style={styles.serviceTextWrap}>
-            <Text style={styles.serviceTitle}>{title}</Text>
-            <Text style={styles.serviceSubtitle}>{subtitle}</Text>
-          </View>
+      <Text style={styles.intro}>La plateforme qui vous accompagne.</Text>
+      <Text style={styles.sectionTitle}>Services</Text>
+      {categories.map((category) => (
+        <Pressable
+          key={category}
+          style={styles.menuRow}
+          onPress={() => {
+            setSelectedCategory(category);
+            go('search');
+          }}
+        >
+          <Text style={styles.menuText}>{category}</Text>
+          <Text style={styles.chevron}>›</Text>
         </Pressable>
       ))}
     </ScrollView>
   );
 }
 
-function ServiceScreen({ title, onBack, onPersonPress }) {
+function Search({ category, go }) {
+  const [city, setCity] = useState('');
+  const [district, setDistrict] = useState('');
+  const isMachinery = category === 'Conducteurs d’engins';
+
   return (
     <View style={styles.screen}>
-      <Header title={title} onBack={onBack} />
+      <Header title={category} onBack={() => go('home')} />
       <ScrollView contentContainerStyle={styles.content}>
-        {PEOPLE.map((person, index) => (
-          <Pressable key={`${person}-${index}`} onPress={() => onPersonPress(person)} style={styles.personRow}>
-            <View style={styles.avatarCircle}><Text style={styles.avatarText}>{person.slice(0, 2).toUpperCase()}</Text></View>
-            <View style={styles.personInfo}>
-              <Text style={styles.personName}>{person}</Text>
-              <Text style={styles.personMeta}>{(index + 1) * 1.3} km · Disponible</Text>
-            </View>
-            <Text style={styles.linkText}>Voir</Text>
-          </Pressable>
-        ))}
+        {isMachinery ? (
+          <>
+            <Text style={styles.sectionTitle}>Choisir une ou plusieurs catégories</Text>
+            {machinery.map((item) => (
+              <Text key={item} style={styles.checkRow}>□ {item}</Text>
+            ))}
+          </>
+        ) : (
+          <>
+            <Field label="Ville" value={city} onChangeText={setCity} />
+            <Field label="Quartier" value={district} onChangeText={setDistrict} />
+          </>
+        )}
+        <Button title="Valider" onPress={() => Alert.alert('Recherche', 'La recherche sera affichée après connexion à Firebase.')} />
       </ScrollView>
     </View>
   );
 }
 
-function ChatScreen({ person, messages, value, onChangeText, onSend, onBack, onAttachment }) {
+function Chat({ go, messages, text, setText, send }) {
   return (
     <View style={styles.screen}>
-      <Header title={person} onBack={onBack} />
-
-      <ScrollView contentContainerStyle={styles.chatContent}>
-        {messages.map((msg, index) => (
-          <View
-            key={`${msg}-${index}`}
-            style={[styles.chatBubble, index % 2 === 1 && styles.chatBubbleMine]}
-          >
-            <Text style={styles.chatBubbleText}>{msg}</Text>
+      <Header title="Discussion" onBack={() => go('home')} />
+      <ScrollView contentContainerStyle={styles.chatList}>
+        {messages.map((item, index) => (
+          <View key={`${item}-${index}`} style={[styles.bubble, index % 2 === 0 && styles.myBubble]}>
+            <Text>{item}</Text>
           </View>
         ))}
       </ScrollView>
 
-      <View style={styles.chatInputBar}>
-        <Pressable onPress={onAttachment}>
-          <Text style={styles.attachIcon}>📎</Text>
+      <View style={styles.composer}>
+        <Pressable onPress={() => go('attachments')}>
+          <Text style={styles.attach}>📎</Text>
         </Pressable>
-        <Pressable onPress={onAttachment}>
-          <Text style={styles.attachIcon}>📷</Text>
+        <Pressable onPress={() => Alert.alert('Caméra', 'La caméra sera connectée dans le module média.')}>
+          <Text style={styles.attach}>📷</Text>
         </Pressable>
-
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          placeholder="Écrire un message"
-          style={styles.messageInput}
-        />
-
-        <Pressable onPress={onSend} style={styles.sendButton}>
-          <Text style={styles.sendIcon}>{value.trim() ? '➤' : '🎤'}</Text>
+        <TextInput value={text} onChangeText={setText} placeholder="Écrire un message" style={styles.messageInput} />
+        <Pressable onPress={send} style={styles.roundButton}>
+          <Text style={styles.roundText}>{text.trim() ? '➤' : '🎤'}</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-function CashScreen({ balance, onBack, onRecharge, onPay, onWithdraw }) {
-  return (
-    <View style={styles.screen}>
-      <Header title="PPC-Cash" onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.walletCard}>
-          <Text style={styles.walletLabel}>Solde PPC-Cash</Text>
-          <Text style={styles.walletAmount}>{balance.toLocaleString('fr-FR')} FCFA</Text>
-        </View>
-
-        <Pressable onPress={onRecharge} style={styles.actionCard}>
-          <Text style={styles.actionIcon}>↥</Text>
-          <Text style={styles.actionText}>Recharger PPC-Cash</Text>
-        </Pressable>
-
-        <Pressable onPress={onPay} style={styles.actionCard}>
-          <Text style={styles.actionIcon}>⇄</Text>
-          <Text style={styles.actionText}>Payer / Transférer</Text>
-        </Pressable>
-
-        <Pressable onPress={onWithdraw} style={styles.actionCard}>
-          <Text style={styles.actionIcon}>↧</Text>
-          <Text style={styles.actionText}>Retirer de l’argent</Text>
-        </Pressable>
-      </ScrollView>
-    </View>
-  );
-}
-
-function PublishScreen({ images, onPick, onBack, onSubmit }) {
-  return (
-    <View style={styles.screen}>
-      <Header title="Publier" onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.formCard}>
-          <Text style={styles.formTitle}>Déposer vos articles ici</Text>
-
-          <Pressable onPress={onPick} style={styles.uploadBox}>
-            <Text style={styles.uploadIcon}>＋</Text>
-            <Text style={styles.uploadText}>Ajouter jusqu’à 4 images ({images.length}/4)</Text>
-          </Pressable>
-
-          <TextInput placeholder="Nom de l’article" style={styles.input} />
-          <TextInput placeholder="Prix (FCFA)" keyboardType="numeric" style={styles.input} />
-          <TextInput placeholder="Description" multiline style={[styles.input, styles.textArea]} />
-          <TextInput placeholder="Ville" style={styles.input} />
-          <TextInput placeholder="Quartier" style={styles.input} />
-
-          <Pressable style={styles.primaryButton} onPress={onSubmit}>
-            <Text style={styles.primaryButtonText}>Envoyer</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
-
-function ProfileScreen({ onBack }) {
-  const items = [
-    'Mon compte Artisans Togo',
-    'Parrainage',
-    'À propos d’Artisans Togo',
-    'Déconnexion',
+function Attachments({ go }) {
+  const choices = [
+    ['Galerie', '🖼️'],
+    ['Caméra', '📷'],
+    ['Localisation', '📍'],
+    ['Document', '📄'],
+    ['Devis', '🧾'],
+    ['Carte paiement PPC-Cash', '₣'],
   ];
 
   return (
     <View style={styles.screen}>
-      <Header title="Profil" onBack={onBack} />
+      <Header title="Ajouter" onBack={() => go('chat')} />
       <ScrollView contentContainerStyle={styles.content}>
-        {items.map((item, index) => (
-          <Pressable key={`${item}-${index}`} style={styles.actionCard}>
-            <Text style={styles.actionIcon}>{index === 0 ? '👤' : index === 1 ? '🎁' : index === 2 ? 'ⓘ' : '↪'}</Text>
-            <Text style={styles.actionText}>{item}</Text>
+        <View style={styles.attachmentGrid}>
+          {choices.map(([label, icon]) => (
+            <Pressable
+              key={label}
+              style={styles.attachment}
+              onPress={() => {
+                if (label === 'Localisation') go('location');
+                else if (label === 'Document') go('document');
+                else if (label === 'Devis') go('quote');
+                else if (label === 'Carte paiement PPC-Cash') go('paymentCard');
+                else Alert.alert(label, 'Cette sélection sera connectée au module correspondant.');
+              }}
+            >
+              <Text style={styles.attachmentIcon}>{icon}</Text>
+              <Text style={styles.attachmentLabel}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function LocationScreen({ back }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Localisation" onBack={back} />
+      <View style={styles.content}>
+        <View style={styles.mapPlaceholder}>
+          <Text style={styles.mapText}>Carte</Text>
+        </View>
+        <Button title="Envoyer votre localisation actuelle" onPress={() => Alert.alert('Localisation', 'Votre localisation sera envoyée après autorisation.')} />
+      </View>
+    </View>
+  );
+}
+
+function DocumentScreen({ back }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Document" onBack={back} />
+      <View style={styles.content}>
+        <View style={styles.empty}>
+          <Text>Aucun document sélectionné.</Text>
+        </View>
+        <Button title="Envoyer" onPress={() => Alert.alert('Document', 'Sélectionnez un document avant de l’envoyer.')} />
+      </View>
+    </View>
+  );
+}
+
+function QuoteScreen({ back, rows, setRows, labour, setLabour }) {
+  const update = (setter, list, index, key, value) => {
+    setter(list.map((row, i) => (i === index ? { ...row, [key]: value } : row)));
+  };
+
+  return (
+    <View style={styles.screen}>
+      <Header title="Artisans Togo · Devis" onBack={back} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Field label="Niveau des travaux" />
+
+        <Text style={styles.tableTitle}>Matériaux nécessaires</Text>
+        <TableHeader labels={['Désignation matériaux', 'Quantité', 'Unité']} />
+        {rows.map((row, i) => (
+          <View style={styles.tableRow} key={i}>
+            <TextInput style={styles.cell} value={row.designation} onChangeText={(v) => update(setRows, rows, i, 'designation', v)} />
+            <TextInput style={styles.cell} value={row.quantity} onChangeText={(v) => update(setRows, rows, i, 'quantity', v)} />
+            <TextInput style={styles.cell} value={row.unit} onChangeText={(v) => update(setRows, rows, i, 'unit', v)} />
+          </View>
+        ))}
+        <Button title="Ajouter une ligne" secondary onPress={() => setRows([...rows, { designation: '', quantity: '', unit: '' }])} />
+
+        <Text style={styles.tableTitle}>Main d’œuvre</Text>
+        <TableHeader labels={['Désignation des travaux', 'Quantité', 'Prix unitaire M.O.']} />
+        {labour.map((row, i) => (
+          <View style={styles.tableRow} key={i}>
+            <TextInput style={styles.cell} value={row.designation} onChangeText={(v) => update(setLabour, labour, i, 'designation', v)} />
+            <TextInput style={styles.cell} value={row.quantity} onChangeText={(v) => update(setLabour, labour, i, 'quantity', v)} />
+            <TextInput style={styles.cell} value={row.price} onChangeText={(v) => update(setLabour, labour, i, 'price', v)} />
+          </View>
+        ))}
+        <Button title="Ajouter une ligne" secondary onPress={() => setLabour([...labour, { designation: '', quantity: '', price: '' }])} />
+
+        <Text style={styles.total}>Total : calculé automatiquement</Text>
+        <Button title="Accepter le devis" onPress={() => Alert.alert('Devis', 'Le devis accepté sera envoyé au client.')} />
+        <Button title="Refuser" secondary onPress={back} />
+      </ScrollView>
+    </View>
+  );
+}
+
+function PaymentCard({ rows, setRows, createdAt, expiresAt, onGenerate, go }) {
+  const expired = expiresAt && Date.now() >= expiresAt;
+  const add = () => setRows([...rows, { name: '', amount: '' }]);
+
+  return (
+    <View style={styles.screen}>
+      <Header title="Carte paiement PPC-Cash" onBack={() => go('chat')} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.info}>Reçu généré à partir des articles ou du devis.</Text>
+
+        {rows.map((row, i) => (
+          <View style={styles.paymentRow} key={i}>
+            <TextInput
+              style={[styles.input, styles.flex]}
+              placeholder="Nom de l’article"
+              value={row.name}
+              onChangeText={(v) => setRows(rows.map((r, n) => (n === i ? { ...r, name: v } : r)))}
+            />
+            <TextInput
+              style={styles.amountInput}
+              placeholder="Prix"
+              keyboardType="numeric"
+              value={row.amount}
+              onChangeText={(v) => setRows(rows.map((r, n) => (n === i ? { ...r, amount: v } : r)))}
+            />
+          </View>
+        ))}
+
+        <Button title="Ajouter un article" secondary onPress={add} />
+        <Text style={styles.total}>Total à payer : à calculer</Text>
+
+        {createdAt && !expired ? (
+          <View style={styles.qr}>
+            <Text style={styles.qrText}>QR CODE PPC-CASH</Text>
+            <Text>Valable 5 minutes</Text>
+          </View>
+        ) : createdAt && expired ? (
+          <Text style={styles.error}>Cette carte de paiement PPC-Cash a expiré.</Text>
+        ) : null}
+
+        <Button title="Générer" onPress={onGenerate} />
+        {createdAt && !expired && (
+          <Button title="Cliquer pour payer par PPC-Cash" secondary onPress={() => go('payConfirm')} />
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+function PayConfirm({ go }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Confirmation du paiement" onBack={() => go('paymentCard')} />
+      <View style={styles.content}>
+        <Text style={styles.summary}>Vous allez payer la facture de : … FCFA à …</Text>
+        <Field label="Confirmer le paiement par votre code secret PPC-Cash" secureTextEntry />
+        <Button title="Envoyer" onPress={() => go('paySuccess')} />
+      </View>
+    </View>
+  );
+}
+
+function Success({ title, message, back }) {
+  return (
+    <View style={styles.screen}>
+      <Header title={title} onBack={back} />
+      <View style={styles.success}>
+        <Text style={styles.successTitle}>{title}</Text>
+        <Text style={styles.successMessage}>{message}</Text>
+      </View>
+    </View>
+  );
+}
+
+function Cash({ go }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="PPC-Cash" onBack={() => go('home')} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.balanceLabel}>Solde PPC-Cash</Text>
+        <Text style={styles.balance}>— FCFA</Text>
+        <Button title="Recharger PPC-Cash" onPress={() => go('recharge')} />
+        <Button title="Payer / Transférer" onPress={() => go('paymentCard')} />
+        <Button title="Retirer de l’argent" onPress={() => go('withdraw')} />
+      </ScrollView>
+    </View>
+  );
+}
+
+function Recharge({ operator, setOperator, go }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Recharger PPC-Cash" onBack={() => go('cash')} />
+      <View style={styles.content}>
+        <Text style={styles.sectionTitle}>Choisir</Text>
+        {['Mixx de Yas', 'Moov Money de Moov Africa'].map((item) => (
+          <Pressable key={item} onPress={() => setOperator(item)} style={[styles.menuRow, operator === item && styles.selectedRow]}>
+            <Text style={styles.menuText}>{item}</Text>
+          </Pressable>
+        ))}
+        <Field label="Numéro de téléphone" />
+        <Field label="Montant" keyboardType="numeric" />
+        <Button title="Envoyer" onPress={() => (operator ? go('operatorCode') : Alert.alert('Erreur', 'Choisissez un opérateur.'))} />
+      </View>
+    </View>
+  );
+}
+
+function OperatorCode({ go }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Code opérateur" onBack={() => go('recharge')} />
+      <View style={styles.content}>
+        <Field label="Code Mixx ou code Moov Money" secureTextEntry />
+        <Button title="Envoyer" onPress={() => go('ppcSecret')} />
+      </View>
+    </View>
+  );
+}
+
+function PpcSecret({ go, success }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Confirmation" onBack={() => go(success === 'recharge' ? 'operatorCode' : 'withdrawSummary')} />
+      <View style={styles.content}>
+        <Text style={styles.summary}>Saisir le code secret PPC-Cash pour confirmer :</Text>
+        <Field label="Code secret PPC-Cash" secureTextEntry />
+        <Button title="Envoyer" onPress={() => go(success === 'recharge' ? 'rechargeSuccess' : 'withdrawSuccess')} />
+      </View>
+    </View>
+  );
+}
+
+function Withdrawal({ operator, setOperator, go }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Retrait d’argent" onBack={() => go('cash')} />
+      <View style={styles.content}>
+        <Text style={styles.sectionTitle}>Retirer vers</Text>
+        {['Mixx', 'Moov Money'].map((item) => (
+          <Pressable key={item} onPress={() => setOperator(item)} style={[styles.menuRow, operator === item && styles.selectedRow]}>
+            <Text style={styles.menuText}>{item}</Text>
+          </Pressable>
+        ))}
+        <Field label="Numéro de téléphone" />
+        <Field label="Montant" keyboardType="numeric" />
+        <Button title="Envoyer" onPress={() => (operator ? go('withdrawSummary') : Alert.alert('Erreur', 'Choisissez un service.'))} />
+      </View>
+    </View>
+  );
+}
+
+function WithdrawalSummary({ operator, go }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Résumé de l’opération" onBack={() => go('withdraw')} />
+      <View style={styles.content}>
+        <Text style={styles.summary}>Vous voulez retirer … FCFA par {operator}.</Text>
+        <Text style={styles.summary}>Entrez votre code secret PPC-Cash pour confirmer.</Text>
+        <Button title="Continuer" onPress={() => go('ppcSecret')} />
+      </View>
+    </View>
+  );
+}
+
+function Publish({ back }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Publier" onBack={back} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.info}>Déposer vos articles ici</Text>
+        <Field label="Nom" />
+        <Field label="Prix" keyboardType="numeric" />
+        <Field label="Description" multiline />
+        <Field label="Ville" />
+        <Field label="Quartier" />
+        <Button title="Utiliser ma position" secondary onPress={() => Alert.alert('Localisation', 'Autorisation de localisation requise.')} />
+        <Button title="Envoyer" onPress={() => Alert.alert('Publication', 'La publication sera enregistrée avec Firebase.')} />
+      </ScrollView>
+    </View>
+  );
+}
+
+function Profile({ back }) {
+  return (
+    <View style={styles.screen}>
+      <Header title="Profil" onBack={back} />
+      <ScrollView contentContainerStyle={styles.content}>
+        {['Mon compte Artisans Togo', 'Parrainage', 'À propos d’Artisans Togo', 'Déconnexion'].map((item) => (
+          <Pressable key={item} style={styles.menuRow}>
+            <Text style={styles.menuText}>{item}</Text>
+            <Text style={styles.chevron}>›</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -372,340 +579,68 @@ function ProfileScreen({ onBack }) {
   );
 }
 
-function Header({ title, onBack }) {
-  return (
-    <View style={styles.header}>
-      {onBack ? (
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>‹</Text>
-        </Pressable>
-      ) : (
-        <View style={styles.backButtonSpacer} />
-      )}
-      <Text style={styles.headerTitle}>{title}</Text>
-      <View style={styles.backButtonSpacer} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: 18,
-    paddingBottom: 32,
-  },
-  header: {
-    height: 64,
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButtonSpacer: {
-    width: 32,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 32,
-    lineHeight: 32,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-    textAlign: 'center',
-    flex: 1,
-  },
-  heroBanner: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 22,
-    padding: 22,
-    marginBottom: 18,
-  },
-  heroSmall: {
-    color: '#d5fffa',
-    fontSize: 12,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  heroTitle: {
-    color: '#fff',
-    fontSize: 30,
-    fontWeight: '900',
-    marginVertical: 10,
-  },
-  heroText: {
-    color: '#d5fffa',
-    fontSize: 15,
-  },
-  walletCard: {
-    backgroundColor: COLORS.navy,
-    padding: 20,
-    borderRadius: 18,
-    marginBottom: 18,
-  },
-  walletLabel: {
-    color: '#d5e2ef',
-    fontSize: 12,
-  },
-  walletAmount: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: '900',
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.text,
-    marginBottom: 10,
-  },
-  serviceCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  serviceIcon: {
-    fontSize: 28,
-    width: 38,
-  },
-  serviceTextWrap: {
-    flex: 1,
-  },
-  serviceTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  serviceSubtitle: {
-    marginTop: 4,
-    color: COLORS.muted,
-    fontSize: 12,
-  },
-  personRow: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#ccfbf1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: COLORS.primaryDark,
-    fontWeight: '900',
-  },
-  personInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  personName: {
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  personMeta: {
-    color: COLORS.muted,
-    marginTop: 4,
-    fontSize: 12,
-  },
-  linkText: {
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
-  chatContent: {
-    padding: 18,
-    paddingBottom: 100,
-  },
-  chatBubble: {
-    maxWidth: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  chatBubbleMine: {
-    backgroundColor: COLORS.mint,
-    alignSelf: 'flex-end',
-  },
-  chatBubbleText: {
-    color: COLORS.text,
-    fontSize: 15,
-  },
-  chatInputBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  attachIcon: {
-    fontSize: 22,
-    color: COLORS.muted,
-  },
-  messageInput: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    color: COLORS.text,
-  },
-  sendButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendIcon: {
-    color: '#fff',
-    fontSize: 18,
-  },
-  actionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionIcon: {
-    fontSize: 24,
-    width: 30,
-  },
-  actionText: {
-    color: COLORS.text,
-    fontWeight: '700',
-    marginLeft: 10,
-  },
-  formCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 18,
-  },
-  formTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    marginBottom: 16,
-    color: COLORS.text,
-  },
-  uploadBox: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: '#99f6e4',
-    borderRadius: 16,
-    paddingVertical: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f0fdfa',
-    marginBottom: 18,
-  },
-  uploadIcon: {
-    fontSize: 36,
-    color: COLORS.primary,
-    marginBottom: 6,
-  },
-  uploadText: {
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    marginBottom: 12,
-    color: COLORS.text,
-  },
-  textArea: {
-    minHeight: 110,
-    textAlignVertical: 'top',
-  },
-  primaryButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '800',
-  },
-  navBar: {
-    flexDirection: 'row',
-    height: 72,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navItemActive: {
-    backgroundColor: '#f0fdfa',
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    fontSize: 10,
-    color: COLORS.muted,
-    marginTop: 2,
-  },
-  navLabelActive: {
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
+  safe: { flex: 1, backgroundColor: C.primary },
+  app: { flex: 1, backgroundColor: C.background },
+  screen: { flex: 1, backgroundColor: C.background },
+  content: { padding: 18, paddingBottom: 30 },
+  header: { height: 64, backgroundColor: C.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15 },
+  headerTitle: { flex: 1, color: C.white, fontSize: 19, fontWeight: '800', textAlign: 'center' },
+  backButton: { width: 34 },
+  backText: { color: C.white, fontSize: 34, lineHeight: 34 },
+  homeTitle: { backgroundColor: C.primary, padding: 24, borderRadius: 18 },
+  brand: { color: C.white, fontSize: 30, fontWeight: '900' },
+  intro: { color: C.muted, marginVertical: 18 },
+  sectionTitle: { color: C.text, fontSize: 19, fontWeight: '800', marginBottom: 12 },
+  menuRow: { backgroundColor: C.white, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 16, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  selectedRow: { backgroundColor: C.mint, borderColor: C.primary },
+  menuText: { color: C.text, fontWeight: '700' },
+  chevron: { color: C.primary, fontSize: 22 },
+  field: { marginBottom: 14 },
+  label: { color: C.text, fontWeight: '700', marginBottom: 7 },
+  input: { backgroundColor: C.white, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, color: C.text },
+  multiline: { minHeight: 100, textAlignVertical: 'top' },
+  button: { backgroundColor: C.primary, borderRadius: 11, padding: 14, alignItems: 'center', marginTop: 10 },
+  buttonText: { color: C.white, fontWeight: '800' },
+  secondaryButton: { backgroundColor: C.mint },
+  secondaryButtonText: { color: C.dark },
+  balanceLabel: { color: C.muted, marginTop: 20 },
+  balance: { color: C.navy, fontSize: 30, fontWeight: '900', marginBottom: 22 },
+  chatList: { padding: 18, paddingBottom: 100 },
+  bubble: { maxWidth: '80%', backgroundColor: C.white, borderRadius: 16, padding: 12, marginBottom: 10, alignSelf: 'flex-start' },
+  myBubble: { backgroundColor: C.mint, alignSelf: 'flex-end' },
+  composer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 9, backgroundColor: C.white, borderTopWidth: 1, borderColor: C.border, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  attach: { fontSize: 22 },
+  messageInput: { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 10 },
+  roundButton: { width: 43, height: 43, borderRadius: 22, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  roundText: { color: C.white, fontSize: 18 },
+  attachmentGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  attachment: { width: '48%', backgroundColor: C.white, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 18, marginBottom: 12, alignItems: 'center' },
+  attachmentIcon: { fontSize: 27, marginBottom: 8 },
+  attachmentLabel: { color: C.text, fontWeight: '700', textAlign: 'center' },
+  mapPlaceholder: { height: 350, borderRadius: 15, backgroundColor: '#d9f2ef', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  mapText: { color: C.primary, fontWeight: '800' },
+  empty: { padding: 35, alignItems: 'center', backgroundColor: C.white, borderRadius: 14 },
+  tableTitle: { fontSize: 16, fontWeight: '800', marginVertical: 12 },
+  tableRow: { flexDirection: 'row', borderWidth: 1, borderColor: C.border, backgroundColor: C.white },
+  cellHeader: { flex: 1, padding: 7, fontSize: 11, fontWeight: '800' },
+  cell: { flex: 1, minHeight: 44, padding: 7, borderRightWidth: 1, borderColor: C.border },
+  total: { fontSize: 17, fontWeight: '900', marginVertical: 18 },
+  info: { color: C.muted, marginBottom: 14 },
+  paymentRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  flex: { flex: 1 },
+  amountInput: { width: 100, backgroundColor: C.white, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12 },
+  qr: { alignItems: 'center', backgroundColor: C.mint, borderRadius: 14, padding: 28, marginVertical: 18 },
+  qrText: { color: C.primary, fontSize: 20, fontWeight: '900', marginBottom: 8 },
+  error: { color: C.danger, fontWeight: '700', marginVertical: 18 },
+  summary: { color: C.text, fontSize: 16, lineHeight: 25, marginBottom: 15 },
+  success: { margin: 18, padding: 24, backgroundColor: C.white, borderRadius: 16 },
+  successTitle: { color: C.primary, fontSize: 22, fontWeight: '900', marginBottom: 12 },
+  successMessage: { color: C.text, fontSize: 16 },
+  checkRow: { backgroundColor: C.white, padding: 12, borderBottomWidth: 1, borderColor: C.border },
+  bottomNav: { height: 70, backgroundColor: C.white, borderTopWidth: 1, borderColor: C.border, flexDirection: 'row' },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  navIcon: { fontSize: 21 },
+  navLabel: { color: C.muted, fontSize: 10, marginTop: 2 },
+  activeLabel: { color: C.primary, fontWeight: '800' },
 });
